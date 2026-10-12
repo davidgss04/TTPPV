@@ -1,0 +1,7 @@
+nbTeams = 4;
+pv = [| 1, 1, 2, 1     % team 1
+      | 2, 1, 1, 2     % team 2
+      | 1, 2, 1, 1     % team 3
+      | 2, 1, 2, 1 |]; % team 4
+
+% values 1, 2, f. 1 is at home, 2 is away and 3 is flexible (not done yet)
