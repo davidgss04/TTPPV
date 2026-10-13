@@ -4,7 +4,6 @@
 % Compact single round robin schedule minimizing total travel distance
 % The venue of some games is fixed in advance, the others are flexible
 % and their host is chosen by the solver
-% Every team plays floor((nbTeams-1)/2) to ceil((nbTeams-1)/2) home games
 % Specialized for CIRC instances (circular distances)
 %
 % Extension of the CSPLib TTPPV model by Gilles Pesant
@@ -34,7 +33,7 @@ int: digs = ceil(log(10.0,int2float(nbTeams)));
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % decision variables: in round k, team i plays against team opponent[i,k]
 array[Teams,Rounds] of var Teams: opponent;
-% decision variables: host[i,j] is the team that hosts the match between i and j, solver chooses when 3
+% decision variables: host[i,j] is the team that hosts the match between i and j
 array[Teams,Teams] of var Teams: host;
 
 % constraints
@@ -53,9 +52,9 @@ constraint forall (i in Teams) (host[i,i] = i);
 % both teams must agree on the place
 constraint forall (i, j in Teams where i < j) (host[i,j] == host[j,i]);
 
-% auxiliary variables: venue[i,k] = 1 iff team i plays at home in round k
+% auxiliary variables: venue[i,k] = 1 if team i plays at home in round k (i hosts the match against its round-k opponent)
 array[Teams,Rounds] of var 1..2: venue;
-constraint forall (i in Teams, k in Rounds) (venue[i,k] = pv[i,opponent[i,k]]);
+constraint forall (i in Teams, k in Rounds) (venue[i,k] = if host[i,opponent[i,k]] = i then 1 else 2 endif );
 
 % auxiliary variables: travel[i,k] is the distance travelled by team i to go play in round k (includes travelling back home after last round)
 array[Teams,Travels] of var 0..(nbTeams div 2): travel;
@@ -73,6 +72,9 @@ constraint forall (i in Teams) (alldifferent([opponent[i,k] | k in Rounds]));
 
 % for each round k, all opponents are different (implied constraint)
 constraint forall (k in Rounds) (alldifferent([opponent[i,k] | i in Teams]));
+
+% Home/away balance: each team plays +- half its games at home
+constraint forall (i in Teams) (sum (k in Rounds) (venue[i,k] = 1) in ((nbTeams-1) div 2)..(nbTeams div 2) );
 
 % for each team i, there can be at most 3 consecutive home games and at most 3 consecutive away games
 int: nbStates = 7;
