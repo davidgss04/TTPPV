@@ -1,0 +1,15 @@
+4
+
+home home UND UND
+away home UND UND
+UND UND home UND
+UND UND UND home
+
+2	3	4	3
+0	1	2	1
+1	0	1	2
+2	1	0	1
+1	2	1	0
+
+20	20	20	20
+

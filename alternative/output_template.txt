@@ -1,0 +1,18 @@
+SCHEDULE
+@6  5  4 @3 @2
+ 5 @3 @6  4  1
+@4  2 @5  1  6
+ 3  6 @1 @2 @5
+@2 @1  3  6  4
+ 1 @4  2 @5 @3
+
+total travel distance = 258
+total travel expenses = 772 credits
+
+TEAM DISTANCE / EXPENSE / BUDGET
+team 1: 57 / 114 / 120
+team 2: 34 / 102 / 114
+team 3: 46 / 184 / 200
+team 4: 39 / 78 / 86
+team 5: 34 / 102 / 114
+team 6: 48 / 192 / 208
