@@ -235,23 +235,17 @@ constraint budgetAwareObjective =
 solve minimize budgetAwareObjective;
 
 % ----------------------------- Output -----------------------------
-output ["SCHEDULE\n"] ++
+output
     [ (if fix(venue[i,k]) = 1 then " " else "@" endif) ++
       show_int(digs, opponent[i,k]) ++ " " ++
       (if k = nbRounds then "\n" else "" endif)
       | i in Teams, k in Rounds ] ++
-    ["total travel distance = ", show(totalTravel), "\n"] ++
-    ["total travel expenses = ", show(totalExpense), " credits\n"] ++
-    ["scaled budget-aware objective = ", show(budgetAwareObjective), "\n"] ++
-    ["\nTEAM DISTANCE / COST PER UNIT / EXPENSE / BUDGET / PRIORITY\n"] ++
-    ["team " ++ show(i) ++ ": " ++
-     show(teamDistance[i]) ++ " / " ++
-     show(cost_per_unit_of_distance[i]) ++ " / " ++
-     show(teamExpense[i]) ++ " / " ++
-     show(budget[i]) ++ " / " ++
-     show(normalizedPriority[i]) ++ "\n"
-     | i in Teams];/* ++
-    ["\nFLEXIBLE MATCH HOSTS\n"] ++
-    ["match " ++ show(i) ++ "-" ++ show(j) ++ ": team " ++
-     show(host[i,j]) ++ "\n"
-     | i,j in Teams where i < j /\ pv[i,j] = 3];*/
+    ["\n"] ++
+    [show(totalTravel), "\n"] ++
+    [show(totalExpense), "\n"] ++
+    ["\n"] ++
+    [/*"team " ++ show(i) ++ ": " ++*/
+     show(teamDistance[i]) ++ "\t" ++
+     show(teamExpense[i]) ++ "\t" ++
+     show(budget[i]) ++ "\n"
+     | i in Teams];
