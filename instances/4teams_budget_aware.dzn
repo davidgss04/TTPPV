@@ -1,4 +1,3 @@
-% Four-team smoke test: five flexible matches, team-specific travel costs.
 nbTeams = 4;
 
 pv = [|
@@ -22,4 +21,3 @@ available = [|
   true, true, true |
   true, true, true |
   true, true, true |];
-

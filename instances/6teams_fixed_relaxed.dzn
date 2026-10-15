@@ -1,7 +1,3 @@
-% Six teams: fixed, relaxed monetary budgets.
-% All six instances share the same distances, costs, and stadium availability.
-% Budget = [180, 171, 300, 129, 171, 312]
-% Six-team instance: 6teams_fixed, 6 budgets are monetary credits.
 nbTeams = 6;
 
 pv = [|
@@ -12,6 +8,8 @@ pv = [|
   2, 2, 1, 1, 1, 1 |
   1, 1, 2, 2, 2, 1 |];
 
+cost_per_unit_of_distance = [2, 3, 4, 2, 3, 4];
+
 distance = [|
   0, 9, 14, 8, 18, 11 |
   9, 0, 12, 17, 7, 16 |
@@ -20,10 +18,6 @@ distance = [|
   18, 7, 13, 15, 0, 11 |
   11, 16, 6, 9, 11, 0 |];
 
-cost_per_unit_of_distance = [2, 3, 4, 2, 3, 4];
-
-% Monetary limits scaled from the previous distance budgets.
-% This retains feasibility of the known reference schedule.
 budget = [180, 171, 300, 129, 171, 312];
 
 available = [|
@@ -33,4 +27,3 @@ available = [|
   true, true, true, false, true |
   true, false, true, true, true |
   true, true, true, false, true |];
-

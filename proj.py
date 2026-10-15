@@ -3,7 +3,7 @@ import os
 import subprocess
 
 #Input reading
-print("Parsing input...")
+print("Parsing input...", file=sys.stderr)
 
 chunks = sys.stdin.read().split("\n\n")
 filename = os.path.basename(os.readlink("/proc/self/fd/0"))[:-3]
@@ -51,37 +51,36 @@ for b in range(n):
     if b == n-1: instance += f"{budgets[b]}];\n"
     else: instance += f"{budgets[b]}, "
 
-#Availability matrix
-availability = [["true" for _ in range(n-1)] for _ in range(n)]
+# Stadium availability
+availability = [["true" for _ in range(n - 1)] for _ in range(n)]
 
-#Parse stadium unavailablility
-try:
-    unavailability = chunks[5].rstrip().split('\t')
+# Parse optional stadium unavailability restrictions
+if len(chunks) > 5 and chunks[5].strip():
+    unavailability = chunks[5].strip().split('\t')
+
     for info in unavailability:
-        team, round = int(info[0]), int(info[2])
+        team, round = map(int, info.split(','))
         availability[team - 1][round - 1] = "false"
 
-    instance += "\navailable = [|\n"
+# Generate MiniZinc availability matrix
+instance += "\navailable = [|\n"
 
-    for t in range(n):
-        instance += "  "
-        for r in range(n-1):
-            a = availability[t][r]
-            if t == n-1 and r == n-2: instance += f"{a} |];\n"
-            elif r == n-2: instance += f"{a} |\n"
-            else: instance += f"{a}, "
-
-except IndexError:
-    pass
+for t in range(n):
+    instance += "  "
+    for r in range(n - 1):
+        a = availability[t][r]
+        if t == n - 1 and r == n - 2: instance += f"{a} |];\n"
+        elif r == n - 2: instance += f"{a} |\n"
+        else: instance += f"{a}, "
 
 #Creating run file
-print("Creating run file...")
+print("Creating run file...", file=sys.stderr)
 
 with open(f"instances/{filename}.dzn", "w") as ins:
     ins.write(instance)
 
 #Creating CSP model
-print("Creating CSP model...")
+print("Creating CSP model...", file=sys.stderr)
 
 model = r"""
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -104,20 +103,20 @@ set of int: Travels = 1..nbRounds+1;
 
 % pv[i,j] = 1: team i hosts j; 2: team j hosts i;
 %           3: flexible (solver chooses the host).
-% The diagonal is ignored.
+% the diagonal is ignored.
 array[Teams,Teams] of 1..3: pv;
 
-% Explicit, symmetric, nonnegative venue-to-venue distances.
+% distances between team venues (symetric).
 array[Teams,Teams] of int: distance;
 
-% Each team's monetary cost per unit of travel distance.
+% each team's monetary cost per unit of travel distance.
 array[Teams] of int: cost_per_unit_of_distance;
 
-% Maximum monetary travel expenses for each team (credits).
+% maximum travel budget each team has.
 array[Teams] of int: budget;
 
-% True when team i can host a match in round k.
-% False does not prevent team i from playing AWAY in that round.
+% true when team i can host a match in round k.
+% false does not prevent team i from playing away in that round.
 array[Teams,Rounds] of bool: available;
 
 int: maxDistance = max([distance[i,j] | i,j in Teams]);
@@ -150,19 +149,19 @@ constraint assert(forall(i in Teams)(cost_per_unit_of_distance[i] > 0),
     "cost per unit must be strictly positive");
 
 % ---------------------- Decision variables ------------------------
-% Opponent of team i in round k.
+% opponent of team i in round k.
 array[Teams,Rounds] of var Teams: opponent;
 
-% Host of the match between teams i and j. Same host from both sides.
+% host of the match between teams i and j. Same host from both sides.
 array[Teams,Teams] of var Teams: host;
 
 % 1 = home, 2 = away, according to the chosen host.
 array[Teams,Rounds] of var 1..2: venue;
 
-% Travel for the first journey, between rounds, and the return home.
+% travel for the first journey, between rounds, and the return home.
 array[Teams,Travels] of var 0..maxDistance: travel;
 
-% Per-team distance and monetary expense (derived from travel legs).
+% distance between teams and monetary expense
 array[Teams] of var 0..((nbRounds+1)*maxDistance): teamDistance;
 array[Teams] of var 0..max(budget): teamExpense;
 
@@ -180,7 +179,7 @@ constraint forall(i in Teams, k in Rounds)(
     (venue[i,k] = 1) <-> (host[i,opponent[i,k]] = i)
 );
 
-% Home/away balance for a compact single round-robin tournament.
+% home/away balance for a compact single round-robin tournament.
 constraint forall(i in Teams)(
     sum(j in Teams where j != i)(bool2int(host[i,j] = i))
         >= nbRounds div 2 /\
@@ -188,7 +187,7 @@ constraint forall(i in Teams)(
         <= (nbRounds + 1) div 2
 );
 
-% No team may host when its stadium is unavailable.
+% no team may host when its stadium is unavailable
 constraint forall(i in Teams, k in Rounds)(
     not available[i,k] -> venue[i,k] = 2
 );
@@ -205,7 +204,7 @@ constraint forall(k in Rounds)(
     alldifferent([opponent[i,k] | i in Teams])
 );
 
-% No four consecutive home games or four consecutive away games.
+% no four consecutive home games or four consecutive away games
 int: nbStates = 7;
 set of int: States = 1..nbStates;
 array[States,1..2] of int: delta =
@@ -220,17 +219,17 @@ constraint forall(i in Teams)(
     regular([venue[i,k] | k in Rounds], nbStates, 2, delta, 1, States)
 );
 
-% IMPORTANT: No round-reversal symmetry breaking! Stadium availability
-% depends on the round, so reversing a schedule need not preserve feasibility.
+% note: no round-reversal symmetry breaking
+% stadium availability depends on the round, so reversing a schedule need not preserve feasibility
 
 % ---------------------- Travel calculation ------------------------
-% Start at home before round 1.
+% start at home before round 1.
 constraint forall(i in Teams)(
     (venue[i,1] = 1 -> travel[i,1] = 0) /\
     (venue[i,1] = 2 -> travel[i,1] = distance[i,opponent[i,1]])
 );
 
-% Travel directly between successive match venues.
+% travel directly between successive match venues.
 constraint forall(i in Teams, k in 1..nbRounds-1)(
     (venue[i,k] = 1 /\ venue[i,k+1] = 1 ->
         travel[i,k+1] = 0) /\
@@ -242,7 +241,7 @@ constraint forall(i in Teams, k in 1..nbRounds-1)(
         travel[i,k+1] = distance[opponent[i,k],opponent[i,k+1]])
 );
 
-% Return home after the final round.
+% return home after the final round.
 constraint forall(i in Teams)(
     (venue[i,nbRounds] = 1 -> travel[i,nbRounds+1] = 0) /\
     (venue[i,nbRounds] = 2 ->
@@ -260,12 +259,12 @@ constraint forall(i in Teams)(
 % ----------------- Automatic team priorities ---------------------
 % Financial sensitivity: s_i = cost_per_unit_of_distance[i] / budget[i].
 % Mean sensitivity: s_bar = sum(s_i) / nbTeams.
-% The desired objective is EXACTLY:
+% Objective:
 %
 %   minimize sum(i in Teams)((1 + s_i / s_bar) * teamDistance[i])
 %
 % All s_i and s_bar are fixed instance parameters. To preserve exactness
-% with integer CP solvers (including Gecode), clear denominators and
+% with integer CP solvers (like Gecode), we need to clear denominators and
 % remove any common factor in the resulting positive coefficients.
 %
 % lcmBudget / budget[i] is an integer for every team i.
@@ -300,11 +299,11 @@ function int: gcd_coefficient_prefix(int: k) =
 
 int: coefficientGCD = gcd_coefficient_prefix(nbTeams);
 
-% Integer coefficients with EXACTLY the same minimizers as the formula.
+% integer coefficients with exactly the same minimizers as the formula.
 array[Teams] of int: priorityCoefficient =
     [coefficientNumerator[i] div coefficientGCD | i in Teams];
 
-% Only for explanatory output; solver optimizes the exact integer objective.
+% only for explanatory output; solver optimizes the exact integer objective.
 array[Teams] of float: normalizedPriority =
     [int2float(coefficientNumerator[i]) /
      int2float(totalSensitivityNumerator) | i in Teams];
@@ -331,10 +330,10 @@ output
     [show(totalTravel), "\n"] ++
     [show(totalExpense), "\n"] ++
     ["\n"] ++
-    [/*"team " ++ show(i) ++ ": " ++*/
-     show(teamDistance[i]) ++ "\t" ++
+    [show(teamDistance[i]) ++ "\t" ++
      show(teamExpense[i]) ++ "\t" ++
-     show(budget[i]) ++ "\n"
+     show(budget[i]) ++ "\t" ++
+     show(normalizedPriority[i]) ++ "\n"
      | i in Teams];
 """
 
@@ -342,11 +341,20 @@ with open("TTPFVHBTDMBSA-BA.mzn", "w") as ml:
     ml.write(model)
 
 #Running the CSP model with Gecode
-print("Running CSP model using Gecode...")
+print("Running CSP model using Gecode...", file=sys.stderr)
 
 output = subprocess.run(["minizinc", "--solver", "gecode", "TTPFVHBTDMBSA-BA.mzn", f"instances/{filename}.dzn"], capture_output=True, text=True)
 
-print("Producing final solution...")
+if output.returncode != 0:
+    print(output.stderr, file=sys.stderr)
+    sys.exit(output.returncode)
+
+if "=====UNSATISFIABLE=====" in output.stdout:
+    print("No solution was found.")
+    sys.exit(0)
+
+#Parsing final output
+print("Producing final solution...", file=sys.stderr)
 working = output.stdout.strip().split('\n\n')
 
 solution = "GAME SCHEDULE:\n===========================================\n"
@@ -372,7 +380,7 @@ del(stats[-1])
 stats = [team.split('\t') for team in stats]
 
 for id, team in enumerate(stats):
-    solution += f"Team {id + 1}:\n  Distance travelled: {team[0]}\n  Ammount spent: {team[1]}\n  Initial budget: {team[2]}\n===========================================\n"
+    solution += f"Team {id + 1}:\n  Distance travelled: {team[0]}\n  Ammount spent: {team[1]}\n  Initial budget: {team[2]}\n  Normalised minimizing travel priority: {team[3]}\n===========================================\n"
 
 solution += "\nOVERALL STATS:\n"
 overall = working[1].split('\n')
@@ -380,3 +388,6 @@ solution += f"Total travelled distance: {overall[0]}\nTotal travel expenses: {ov
 
 with open(f"outputs/{filename}.out", "w") as out:
     out.write(solution)
+
+print("Output:\n")
+print(solution, end="")
