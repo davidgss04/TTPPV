@@ -1,6 +1,8 @@
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Traveling Tournament Problem with Flexible Venues,
-% Monetary Travel Budgets and Stadium Availability (TTPFVBSA-BA)
+% Traveling Tournament Problem with Flexible Venues, Home/Away Balance,
+% Travel Distances, Monetary Travel Budgets, Stadium Availability,
+% and Budget-Aware Weighted Optimization (TTPFVHBTDMBSA-BA)
 %
 % Extension of Gilles Pesant's TTPPV (CSPLib problem 068).
 % Teams and rounds are indexed from 1, as in the original MiniZinc model.

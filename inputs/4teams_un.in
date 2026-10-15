@@ -5,9 +5,8 @@ away home UND UND
 UND UND home UND
 UND UND UND home
 
-2, 3, 4, 3
-
 2	3	4	3
+
 0	1	2	1
 1	0	1	2
 2	1	0	1
@@ -15,3 +14,4 @@ UND UND UND home
 
 20	20	20	20
 
+1,1	2,2	3,3	4,1
