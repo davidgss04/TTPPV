@@ -248,5 +248,5 @@ output
     [show(teamDistance[i]) ++ "\t" ++
      show(teamExpense[i]) ++ "\t" ++
      show(budget[i]) ++ "\t" ++
-     show(normalizedPriority[i]) ++ "\n"
+     show_float(0, 2, normalizedPriority[i]) ++ "\n"
      | i in Teams];
