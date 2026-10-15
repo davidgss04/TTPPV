@@ -294,16 +294,13 @@ def build_data(text):
 
 # --------------------------- MiniZinc -----------------------------
 
-def build_model(text):
-    return MODEL + "\n% Instance data\n" + build_data(text)
-
-
-def run_minizinc(model):
+def run_minizinc(dzn_path):
     with tempfile.NamedTemporaryFile("w", suffix=".mzn", delete=False, encoding="utf-8") as f:
-        f.write(model)
+        f.write(MODEL)
     try:
         return subprocess.run(
-            ["minizinc", "--solver", SOLVER, "--time-limit", str(TIME_LIMIT_MS), f.name],
+            ["minizinc", "--solver", SOLVER, "--time-limit", str(TIME_LIMIT_MS),
+             f.name, dzn_path],
             capture_output=True, text=True)
     finally:
         os.remove(f.name)
@@ -339,25 +336,50 @@ def format_report(stdout):
     return "\n".join(out)
 
 
-def main():
-    sys.stdin.reconfigure(encoding="utf-8-sig")
-    result = run_minizinc(build_model(sys.stdin.read()))
-
-    if result.returncode != 0:
-        sys.exit("MiniZinc error:\n" + result.stderr)
-    if "=====UNSATISFIABLE=====" in result.stdout:
-        print("No valid schedule exists for this instance")
-        return
+def final_output(stdout):
+    if "=====UNSATISFIABLE=====" in stdout:
+        return "No valid schedule exists for this instance"
 
     # Time limit ran out before any schedule was found
-    if "=====UNKNOWN=====" in result.stdout:
-        print(f"No schedule found within {TIME_LIMIT_MS // 1000} seconds")
-        return
+    if "=====UNKNOWN=====" in stdout:
+        return f"No schedule found within {TIME_LIMIT_MS // 1000} seconds"
 
-    print(format_report(result.stdout))
+    report = format_report(stdout)
+    if "==========" not in stdout:
+        report += "\n\nTime limit reached: best schedule found, not proven optimal"
+    return report
 
-    if "==========" not in result.stdout:
-        print("\nTime limit reached: best schedule found, not proven optimal")
+
+# --------------------------- Files --------------------------------
+
+def output_paths(input_path):
+    name = os.path.splitext(os.path.basename(input_path))[0]
+    return (os.path.join("instances", name + ".dzn"),
+            os.path.join("raw", name + ".txt"),
+            os.path.join("outputs", name + ".out"))
+
+
+def write_file(path, content):
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+
+def main():
+    input_path = sys.argv[1]
+    dzn_path, raw_path, out_path = output_paths(input_path)
+
+    with open(input_path, encoding="utf-8-sig") as f:
+        write_file(dzn_path, build_data(f.read()))
+
+    result = run_minizinc(dzn_path)
+    write_file(raw_path, result.stdout + result.stderr)
+    if result.returncode != 0:
+        sys.exit("MiniZinc error:\n" + result.stderr)
+
+    output = final_output(result.stdout)
+    write_file(out_path, output + "\n")
+    print(output)
 
 
 if __name__ == "__main__":
