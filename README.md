@@ -36,7 +36,7 @@ raw/                     Raw MiniZinc output for each input (*.txt)
 outputs/                 Reports produced by proj.py for each input (*.out)
 templates/               Input/output format templates
 baseline/                Original CSPLib TTPPV model (starting point)
-archive/                 Earlier intermediate versions of the model
+report/                  LaTeX report (report.tex) and its PDF
 ```
 
 ## Input format
@@ -166,7 +166,7 @@ Equivalent interpretation:
 
 This is a **single centralized weighted optimization objective**, not a game-theoretic model and not an objective that directly minimizes the maximum individual burden. Team priorities depend only on input data, *not* on the chosen schedule. A team with a higher priority coefficient does not necessarily end up traveling less; all constraints and competing interests still matter.
 
-### Exact integer optimization for Gecode and Chuffed
+### Exact integer optimization for Gecode
 
 The objective uses rational, *fixed* coefficients. Rather than optimize using floating-point decision variables, the model clears the denominators and minimizes an **exactly equivalent integer objective**:
 
@@ -210,12 +210,13 @@ SCHEDULE
 
 ## Search strategy
 
-The solver builds a schedule in two steps:
+The original CSPLib model has no search instruction, so the solver chooses its own order. We added one (`seq_search` at the end of the model) that makes the solver decide only the two things that really are choices:
 
-1. It decides who plays whom in each round, always filling first the slot with the fewest possible opponents left. If a slot has no valid opponent, it immediately goes back and tries another option.
-2. It decides who hosts each match.
+1. **Who plays whom.** It fills `opponent[i,k]`, always taking the slot with the fewest possible opponents left (`first_fail`). If a slot has no valid opponent left, the solver backs up at once, so bad rounds are dropped early.
+2. **Who hosts each flexible match.** It then picks the host of each flexible pair (two options). Fixed matches already have their host.
 
-The venues, trips, costs and score are then calculated from these choices. Each time a complete schedule is found, the solver only looks for cheaper ones and drops any partial schedule that is already more expensive. When no options are left, the last schedule found is the proven optimum.
+Home/away, trips, distances and expenses are never chosen directly; they follow from these two steps. The search order changes only the speed, not which schedules are valid or the optimal value.
+Each time a complete schedule is found, the solver only looks for cheaper ones and drops any partial schedule that is already more expensive. When no options are left, the last schedule found is the proven optimum.
 
 ## Suggested experiments
 
