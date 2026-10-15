@@ -78,7 +78,7 @@ def format_report(stdout):
                 f"  Distance travelled: {distance}",
                 f"  Amount spent: {spent}",
                 f"  Initial budget: {budget}",
-                f"  Normalised minimizing travel priority: {priority}",
+                f"  Travel priority: {priority}",
                 LINE]
 
     total_distance, total_expense = totals.splitlines()
