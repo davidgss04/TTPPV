@@ -1,52 +1,52 @@
 GAME SCHEDULE:
-===========================================
+========================================
 Team 1:
   - vs Team 3, away
   - vs Team 2, at home
   - vs Team 4, away
-===========================================
+========================================
 Team 2:
   - vs Team 4, at home
   - vs Team 1, away
   - vs Team 3, at home
-===========================================
+========================================
 Team 3:
   - vs Team 1, at home
   - vs Team 4, at home
   - vs Team 2, away
-===========================================
+========================================
 Team 4:
   - vs Team 2, away
   - vs Team 3, away
   - vs Team 1, at home
-===========================================
+========================================
 
 TEAM TRAVEL DISTANCE AND EXPENSES:
-===========================================
+========================================
 Team 1:
   Distance travelled: 6
-  Ammount spent: 12
+  Amount spent: 12
   Initial budget: 20
   Normalised minimizing travel priority: 1.666666666666667
-===========================================
+========================================
 Team 2:
   Distance travelled: 2
-  Ammount spent: 6
+  Amount spent: 6
   Initial budget: 20
   Normalised minimizing travel priority: 2.0
-===========================================
+========================================
 Team 3:
   Distance travelled: 2
-  Ammount spent: 8
+  Amount spent: 8
   Initial budget: 20
   Normalised minimizing travel priority: 2.333333333333333
-===========================================
+========================================
 Team 4:
   Distance travelled: 4
-  Ammount spent: 12
+  Amount spent: 12
   Initial budget: 20
   Normalised minimizing travel priority: 2.0
-===========================================
+========================================
 
 OVERALL STATS:
 Total travelled distance: 14

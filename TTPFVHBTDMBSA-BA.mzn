@@ -17,22 +17,20 @@ set of int: Teams = 1..nbTeams;
 set of int: Rounds = 1..nbRounds;
 set of int: Travels = 1..nbRounds+1;
 
-% pv[i,j] = 1: team i hosts j; 2: team j hosts i;
-%           3: flexible (solver chooses the host).
-% The diagonal is ignored.
+% 1 = team i hosts, 2 = team j hosts
+% 3 = flexible, the host will decide
 array[Teams,Teams] of 1..3: pv;
 
-% Explicit, symmetric, nonnegative venue-to-venue distances.
+% Distance between each pair of stadiums
 array[Teams,Teams] of int: distance;
 
-% Each team's monetary cost per unit of travel distance.
+% How much each team pays per unit of distance travelled
 array[Teams] of int: cost_per_unit_of_distance;
 
-% Maximum monetary travel expenses for each team (credits).
+% Most each team can spend on travel
 array[Teams] of int: budget;
 
-% True when team i can host a match in round k.
-% False does not prevent team i from playing AWAY in that round.
+% False if team i's stadium is closed in round k
 array[Teams,Rounds] of bool: available;
 
 int: maxDistance = max([distance[i,j] | i,j in Teams]);
@@ -65,19 +63,19 @@ constraint assert(forall(i in Teams)(cost_per_unit_of_distance[i] > 0),
     "cost per unit must be strictly positive");
 
 % ---------------------- Decision variables ------------------------
-% Opponent of team i in round k.
+% Opponent of team i in round k
 array[Teams,Rounds] of var Teams: opponent;
 
-% Host of the match between teams i and j. Same host from both sides.
+% Which team hosts the match between i and j
 array[Teams,Teams] of var Teams: host;
 
-% 1 = home, 2 = away, according to the chosen host.
+% Whether team i plays at home (1) or away (2) in round k
 array[Teams,Rounds] of var 1..2: venue;
 
-% Travel for the first journey, between rounds, and the return home.
+% Distance of each trip: to round 1, between rounds, and back home
 array[Teams,Travels] of var 0..maxDistance: travel;
 
-% Per-team distance and monetary expense (derived from travel legs).
+% Total distance and money spent by each team
 array[Teams] of var 0..((nbRounds+1)*maxDistance): teamDistance;
 array[Teams] of var 0..max(budget): teamExpense;
 
@@ -95,7 +93,7 @@ constraint forall(i in Teams, k in Rounds)(
     (venue[i,k] = 1) <-> (host[i,opponent[i,k]] = i)
 );
 
-% Home/away balance for a compact single round-robin tournament.
+% Each team should play +- half its games at home and half away
 constraint forall(i in Teams)(
     sum(j in Teams where j != i)(bool2int(host[i,j] = i))
         >= nbRounds div 2 /\
@@ -103,12 +101,14 @@ constraint forall(i in Teams)(
         <= (nbRounds + 1) div 2
 );
 
-% No team may host when its stadium is unavailable.
+% No team may host when its stadium is unavailable
 constraint forall(i in Teams, k in Rounds)(
     not available[i,k] -> venue[i,k] = 2
 );
 
-% ----------------------- Round-robin rules ------------------------
+% ----------------------- Round-robin constraints ------------------------
+% No team plays itself, opponents match up, every team meets every
+% other team once, and each round pairs everyone up
 constraint forall(i in Teams, k in Rounds)(opponent[i,k] != i);
 constraint forall(i in Teams, k in Rounds)(
     opponent[opponent[i,k],k] = i
@@ -120,7 +120,8 @@ constraint forall(k in Rounds)(
     alldifferent([opponent[i,k] | i in Teams])
 );
 
-% No four consecutive home games or four consecutive away games.
+% At most three home or three away games in a row
+% The table counts the current streak, 0 means the streak got too long
 int: nbStates = 7;
 set of int: States = 1..nbStates;
 array[States,1..2] of int: delta =
@@ -135,17 +136,15 @@ constraint forall(i in Teams)(
     regular([venue[i,k] | k in Rounds], nbStates, 2, delta, 1, States)
 );
 
-% IMPORTANT: No round-reversal symmetry breaking! Stadium availability
-% depends on the round, so reversing a schedule need not preserve feasibility.
 
 % ---------------------- Travel calculation ------------------------
-% Start at home before round 1.
+% Every team starts at home before round 1
 constraint forall(i in Teams)(
     (venue[i,1] = 1 -> travel[i,1] = 0) /\
     (venue[i,1] = 2 -> travel[i,1] = distance[i,opponent[i,1]])
 );
 
-% Travel directly between successive match venues.
+% Teams go straight from one match to the next without going home
 constraint forall(i in Teams, k in 1..nbRounds-1)(
     (venue[i,k] = 1 /\ venue[i,k+1] = 1 ->
         travel[i,k+1] = 0) /\
@@ -157,15 +156,14 @@ constraint forall(i in Teams, k in 1..nbRounds-1)(
         travel[i,k+1] = distance[opponent[i,k],opponent[i,k+1]])
 );
 
-% Return home after the final round.
+% Return home after the final round
 constraint forall(i in Teams)(
     (venue[i,nbRounds] = 1 -> travel[i,nbRounds+1] = 0) /\
     (venue[i,nbRounds] = 2 ->
         travel[i,nbRounds+1] = distance[opponent[i,nbRounds],i])
 );
 
-% expenses depend on which team travels each distance unit:
-% two teams can travel the same distance and spend different amounts.
+% Money spent = distance x the teams own cost per unit. it must fit the budget
 constraint forall(i in Teams)(
     teamDistance[i] = sum(k in Travels)(travel[i,k]) /\
     teamExpense[i] = cost_per_unit_of_distance[i] * teamDistance[i] /\
@@ -173,17 +171,12 @@ constraint forall(i in Teams)(
 );
 
 % ----------------- Automatic team priorities ---------------------
-% Financial sensitivity: s_i = cost_per_unit_of_distance[i] / budget[i].
-% Mean sensitivity: s_bar = sum(s_i) / nbTeams.
-% The desired objective is EXACTLY:
-%
-%   minimize sum(i in Teams)((1 + s_i / s_bar) * teamDistance[i])
-%
-% All s_i and s_bar are fixed instance parameters. To preserve exactness
-% with integer CP solvers (including Gecode), clear denominators and
-% remove any common factor in the resulting positive coefficients.
-%
-% lcmBudget / budget[i] is an integer for every team i.
+% Teams that spend a lot per km compared to their budget get a higher weight
+% the solver tries harder to keep their travel short
+
+% Weight = 1 + (team's cost per km / budget) compared to the average team
+
+% Greatest common divisor
 function int: gcd_pos(int: a, int: b) =
     if b = 0 then a else gcd_pos(b, a mod b) endif;
 
@@ -193,17 +186,16 @@ function int: lcm_budget_prefix(int: k) =
         (prev div gcd_pos(prev, budget[k])) * budget[k]
     endif;
 
+% Smallest number every budget divides into evenly
 int: lcmBudget = lcm_budget_prefix(nbTeams);
 
-% s_i = sensitivityNumerator[i] / lcmBudget.
+% Cost per km divided by budget, scaled up to a whole number
 array[Teams] of int: sensitivityNumerator =
     [cost_per_unit_of_distance[i] * (lcmBudget div budget[i])
      | i in Teams];
 int: totalSensitivityNumerator = sum(sensitivityNumerator);
 
-% 1 + s_i / s_bar
-%   = (totalSensitivityNumerator +
-%      nbTeams * sensitivityNumerator[i]) / totalSensitivityNumerator.
+% Each team's weight, before simplifying
 array[Teams] of int: coefficientNumerator =
     [totalSensitivityNumerator + nbTeams * sensitivityNumerator[i]
      | i in Teams];
@@ -215,11 +207,11 @@ function int: gcd_coefficient_prefix(int: k) =
 
 int: coefficientGCD = gcd_coefficient_prefix(nbTeams);
 
-% Integer coefficients with EXACTLY the same minimizers as the formula.
+% Final weights divided down to the smallest whole numbers
 array[Teams] of int: priorityCoefficient =
     [coefficientNumerator[i] div coefficientGCD | i in Teams];
 
-% Only for explanatory output; solver optimizes the exact integer objective.
+% Same weights as decimals for display only
 array[Teams] of float: normalizedPriority =
     [int2float(coefficientNumerator[i]) /
      int2float(totalSensitivityNumerator) | i in Teams];
@@ -234,7 +226,14 @@ constraint totalExpense = sum(i in Teams)(teamExpense[i]);
 constraint budgetAwareObjective =
     sum(i in Teams)(priorityCoefficient[i] * teamDistance[i]);
 
-solve minimize budgetAwareObjective;
+% Host of each match
+array[int] of var Teams: matchHost = [host[i,j] | i,j in Teams where i < j];
+
+% Search the schedule first, then the hosts, everything else follows
+solve :: seq_search([
+    int_search(opponent,  first_fail,  indomain_min),
+    int_search(matchHost, input_order, indomain_min)
+]) minimize budgetAwareObjective;
 
 % ----------------------------- Output -----------------------------
 output
@@ -246,8 +245,8 @@ output
     [show(totalTravel), "\n"] ++
     [show(totalExpense), "\n"] ++
     ["\n"] ++
-    [/*"team " ++ show(i) ++ ": " ++*/
-     show(teamDistance[i]) ++ "\t" ++
+    [show(teamDistance[i]) ++ "\t" ++
      show(teamExpense[i]) ++ "\t" ++
-     show(budget[i]) ++ "\n"
+     show(budget[i]) ++ "\t" ++
+     show(normalizedPriority[i]) ++ "\n"
      | i in Teams];
