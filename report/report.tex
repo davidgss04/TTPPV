@@ -13,9 +13,8 @@
 \usepackage[most]{tcolorbox}
 \usepackage[hidelinks]{hyperref}
 
-% One accent colour used for headings, the key formula and the diagram
-\definecolor{accent}{RGB}{0,92,158}
-\colorlet{accentbg}{accent!7}
+\definecolor{accent}{gray}{0}
+\definecolor{accentbg}{gray}{0.92}
 \newtcolorbox{keybox}{colback=accentbg,colframe=accent,boxrule=0pt,
   leftrule=2pt,arc=0pt,left=4pt,right=4pt,top=0pt,bottom=0pt,
   boxsep=2pt,before skip=4pt,after skip=4pt}
@@ -53,12 +52,11 @@
 
 \twocolumn[{%
 \begin{center}
-    {\Large\bfseries CSPLib 068: Traveling Tournament with Flexible Hosts and Budgets}\\[8pt]
-    {\large Group 16\quad$\cdot$\quad Martim Borges, David Santos}
+    {\Large\bfseries CSPLib 068: Traveling Tournament\\with Flexible Hosts and Budgets}\\[10pt]
+    {\large Martim Borges 110278 \qquad David Santos 107192}\\[2pt]
+    Group 16\quad$\cdot$\quad Instituto Superior T\'ecnico
 \end{center}
-\vspace{-4pt}
-{\color{accent}\rule{\textwidth}{0.8pt}}
-\vspace{4pt}
+\vspace{6pt}
 }]
 
 % ------------------------------------------------------------------
@@ -221,11 +219,10 @@ Tested with Python 3.14.7 and 3.12.0, MiniZinc 2.10.1 and Gecode 6.4.0.
 python3 proj.py <input file>
 \end{verbatim}
 \end{codebox}
-    \item \textbf{MiniZinc model}:
+    \item \textbf{MiniZinc model} (data in \texttt{instances/}):
 \begin{codebox}
 \begin{verbatim}
-minizinc --solver gecode \
-  TTPFVHBTDMBSA-BA.mzn instances/<name>.dzn
+minizinc --solver gecode TTPFVHBTDMBSA-BA.mzn <dzn>
 \end{verbatim}
 \end{codebox}
 \end{itemize}
@@ -233,17 +230,22 @@ minizinc --solver gecode \
 % ------------------------------------------------------------------
 \section*{7. Video}
 
-% TODO: replace with \url{https://...} once the video is uploaded
-[video link]
+\url{https://www.youtube.com/watch?v=gn2ixmAIJk8}
 
 % ------------------------------------------------------------------
 \section*{8. Web Resources and Generative AI Usage}
 
-\textbf{Web resources.} [list the sites and documentation you used]
+\textbf{Web resources.}
+\begin{itemize}
+    \item \url{https://patatconference.org/patat2012/proceedings/2_19.pdf}\\
+    The TTPPV paper, we read parts of it to understand the base problem.
+    \item \url{https://docs.minizinc.dev/en/stable/index.html}\\
+\end{itemize}
 
-% TODO(human): 2-4 sentences in your own words: which tool, what it was
-% used for (incl. this report's layout), and the course's AI-use level.
-\textbf{Generative AI.} [which tool, for what, and at which level]
+\smallskip
+\noindent\textbf{Generative AI.}
+We used AI to help us learn MiniZinc syntax, understand error messages, improve some code comments and generate input instances.
+The model design and constraints are our own work.
 
 
 \end{document}
