@@ -1,58 +1,66 @@
-# Traveling Tournament Problem with Flexible Venues, Home/Away Balance, Travel Distances, Monetary Travel Budgets, Stadium Availability, and Budget-Aware Weighted Optimization
+# Traveling Tournament Problem with Flexible Venues and Budget-Aware Optimization
 
-This project extends Gilles Pesant's Traveling Tournament Problem with Predefined Venues (TTPPV; CSPLib problem 068). It finds a **compact single round-robin** tournament schedule that respects match venues, home/away balance, stadium availability and individual monetary travel budgets. Flexible matches may be hosted by either of their teams.
+**CSPLib problem 068 — Traveling Tournament Problem with Predefined Venues (TTPPV)**, originally modeled by Gilles Pesant.
 
-The objective uses **automatically calculated, team-specific financial priorities**.
+This project extends the original [MiniZinc traveling tournament model](https://www.csplib.org/Problems/prob068/) to schedule a **compact single round-robin tournament** with flexible match venues, home/away balance, stadium closures, explicit travel distances, individual monetary travel budgets, and automatically computed financial travel priorities. It uses **Python 3**, **MiniZinc**, and the **Gecode** constraint solver.
 
-## Running
+## Problem and implemented extensions
 
-`proj.py` takes the instance file as its argument, converts it to MiniZinc data (`.dzn`), solves the model written in `proj.py` with that data using Gecode (60 s limit) and prints the report to standard output.
+For an even number of teams $n\ge4$, the tournament has $n - 1$ rounds. Every pair meets once, and every team plays one match per round.
+
+1. **Flexible venues:** A match may have a predetermined home team or allow the solver to choose which of its two participants hosts it. A chosen host must be consistent for both teams.
+2. **Home/away balance:** Each team $i$ must play a balanced number of home matches:
+
+$$
+\left\lfloor\frac{n-1}{2}\right\rfloor \le H_i \le \left\lceil\frac{n-1}{2}\right\rceil
+$$
+
+3. **Streak constraint:** A team cannot play four consecutive home matches or four consecutive away matches.
+4. **Stadium availability:** Team $i$ cannot host a match in an unavailable round; it may still play away in that round.
+5. **Explicit distances:** Travel distances are given by a symmetric, nonnegative matrix with a zero diagonal rather than a circular-distance formula. Teams start at home, travel directly between successive match venues, and return home at the end. They do **not** return home automatically between consecutive away matches.
+6. **Team-specific expenses and monetary budgets:** Team $i$ pays $c_i$ per distance unit for all travel legs. Its total expense $E_i = c_i D_i$ cannot exceed its individual positive budget $B_i$.
+7. **Budget-aware objective:** The solver penalizes travel more heavily for teams whose travel costs represent a larger proportion of their budgets. All team priorities are calculated automatically from the instance data.
+
+Because stadium closures depend on the round, the model does not apply the original round-reversal symmetry-breaking constraint.
+
+## Requirements and software versions
+
+- **Operating system:** Linux (the script does not depend on Linux `/proc` paths, but Linux is the environment used for this project).
+- **Python:** Python 3, using only the standard library (`os`, `re`, `subprocess`, `sys`, `tempfile`). **Exact tested version: [fill in after checking]**.
+- **MiniZinc:** Installed and available on `PATH`. **Exact tested version: [fill in after checking]** (2.9.3 was reported earlier; confirm whether it has since been updated).
+- **Solver:** Gecode, available through MiniZinc as `gecode`. **Exact Gecode version: [fill in after checking]**.
+
+Check the versions on the computer used for the experiments:
 
 ```bash
-python3 proj.py inputs/4teams_budget_aware.in
+python3 --version
+minizinc --version
+minizinc --solvers | grep -i gecode
 ```
 
-For an instance `inputs/<name>.in`, each run also writes one file for every step of the pipeline:
+The project uses **Gecode** by default, with a solver time limit of **60 seconds per instance** (`TIME_LIMIT_MS = 60000` in `proj.py`). Adjust that constant in the source to use a different limit. The search strategy described below is part of the MiniZinc model, not a change to the objective function.
 
-| File | Content |
-|---|---|
-| `instances/<name>.dzn` | Instance data given to MiniZinc |
-| `raw/<name>.txt` | Raw MiniZinc output (and any error messages) |
-| `outputs/<name>.out` | Final report, the same text printed to standard output |
 
-- On Windows use `python` instead of `python3`.
-- Input files with CRLF or LF line endings both work.
+## Input format (`.in`)
 
-If the report ends with `Time limit reached: best schedule found, not proven optimal`, the schedule is the best found within the limit, not a proven optimum. Other possible messages are `No valid schedule exists for this instance` (infeasible), `No schedule found within 60 seconds` and `MiniZinc error: ...`. The time limit and solver are set by `TIME_LIMIT_MS` and `SOLVER` at the top of `proj.py`.
+The program accepts the **input file path as its first command-line argument**. It does **not** read the instance from standard input.
 
-## Project structure
+Each `.in` file consists of **five required blocks** and **one optional sixth block**, separated by blank lines. The parser accepts ordinary whitespace between individual entries (spaces, tabs, or line breaks as appropriate).
 
-```text
-proj.py                  Main program: input -> data (.dzn) -> MiniZinc -> raw output -> report
-TTPFVHBTDMBSA-BA.mzn     Copy of the model written in proj.py, for reading
-inputs/                  Test instances in the proj.py input format (*.in)
-instances/               MiniZinc data generated by proj.py for each input (*.dzn)
-raw/                     Raw MiniZinc output for each input (*.txt)
-outputs/                 Reports produced by proj.py for each input (*.out)
-templates/               Input/output format templates
-baseline/                Original CSPLib TTPPV model (starting point)
-report/                  LaTeX report (report.tex) and its PDF
-```
+| Block | Content | Format | Meaning |
+|---|---|---|----|
+| 1 | Number of teams | A single even integer $n \ge 4$ | Teams are numbered $1$ through $n$. |
+| 2 | Venue preferences | $n \times n$ matrix, spacae separated entires | `home`: row team hosts column team; `away`: row team visits column team; `UND`: host chosen by the solver. |
+| 3 | Travel costs | $n$ positive integers $c_i$, **tab-separated** | Cost per distance unit for each team. |
+| 4 | Stadium distances | Symmetric $n \times n$ matrix, **tab-separated** entries | Nonnegative symmetric distances, zero on the diagonal. |
+| 5 | Monetary budgets | $n$ positive integers $B_i$, **tab-separated** | Maximum travel expenses per team. |
+| 6 (optional) | Stadium unavailability | **Tab-separated** `team,round` pairs | Rounds in which a team cannot host. If omitted, all stadiums are available. |
 
-## Input format
+For two different teams, venue entries must be `(home, away)`, `(away, home)`, or `(UND, UND)` when viewed from opposite sides of the matrix. The diagonal is ignored. Round numbers range from $1$ to $n-1$.
 
-Blocks separated by one blank line. Values are separated by spaces or tabs.
+The current parser expects the specified spaces, tabs, and blank lines. In particular, the travel-cost, distance, budget, and unavailability entries should use **tabs**, not arbitrary whitespace. No optimization weights are provided in `.in` files.
 
-| Block | Content |
-|---|---|
-| 1 | `n`, the even number of teams (at least 4) |
-| 2 | `n×n` venue matrix: `home` (row team hosts), `away` (row team visits) or `UND` (flexible). The diagonal is ignored. |
-| 3 | Cost per unit of distance for each team |
-| 4 | `n×n` symmetric distance matrix |
-| 5 | Budget for each team |
-| 6 | *(optional)* `team,round` pairs (1-based) in which that stadium is unavailable |
-
-Example (`inputs/4teams_unavailable.in`):
+### Example: `4teams_unavailable.in`
 
 ```text
 4
@@ -62,125 +70,177 @@ away home UND UND
 UND UND home UND
 UND UND UND home
 
-2	3	4	3
+2 3 4 3
 
-0	1	2	1
-1	0	1	2
-2	1	0	1
-1	2	1	0
+0 1 2 1
+1 0 1 2
+2 1 0 1
+1 2 1 0
 
-20	20	20	20
+20 20 20 20
 
-1,1	2,2	3,3	4,1
+1,1 2,2 3,3 4,1
 ```
 
-## Output format
+The last block prohibits team 1 from hosting in round 1, team 2 in round 2, team 3 in round 3, and team 4 in round 1. These are restrictions on **home** matches only.
 
-The report lists each team's games round by round (opponent, home or away), then each team's distance, expenses, budget and normalised priority $p_i$, and finally the total distance and total expenses. See `outputs/` for examples.
+To allow every stadium in every round, omit the final blank line and sixth block entirely.
 
-## Tournament rules
+## Execution and generated files
 
-For an even number `nbTeams = n >= 4`:
+Run from the project directory, using input redirection from a regular `.in` file:
 
-1. **Round robin:** Every unordered pair of teams plays exactly once, and every team plays exactly one match in every round.
-2. **Venue selection:** Every fixed match is played at its predefined venue. Every flexible match is hosted by exactly one of its two teams, consistently from both teams' perspectives.
-3. **Home/away balance:** The number of home games $H_i$ of each team satisfies
+```bash
+python3 proj.py inputs/4teams_unavailable.in
+```
 
-   $$
-   \left\lfloor\frac{n-1}{2}\right\rfloor \le H_i \le
-   \left\lceil\frac{n-1}{2}\right\rceil.
-   $$
-4. **Home/away streaks:** No team plays four consecutive home matches or four consecutive away matches.
-5. **Stadium availability:** Team $i$ cannot play at home in a round $r$ with $A_{i,r}=0$.
-6. **Explicit distance matrix.** `distance[i,j]` is a nonnegative symmetric distance between stadiums (zero diagonal). Teams begin and finish at home and travel directly between consecutive match venues, including between successive away games.
-7. **Team-dependent travel expenditure.** Team `i` pays a constant `cost_per_unit_of_distance[i]` credits for each unit it personally travels. The rate is applied to **all legs**, including travel to the first match and the return home. Budgets now limit **money**, not distance.
-8. Each team begins at home, travels directly between its consecutive match venues and returns home after its last match. A team does *not* return home automatically between consecutive away games.
-9. **Team travel Budget:** Monetary transportation expenses cannot exceed each team's budget.
-10. **Budget-aware weighted optimization:** Each team $i$ is assigned an automatically calculated weight based on its travel cost per distance unit $c_i$ and monetary budget $B_i$. Teams with higher costs relative to their budgets receive greater priority in the optimization. The weight $w_i$ is defined as:
+Or, for a six-team instance:
 
-    $$
-    w_i = 1 + \frac{c_i/B_i}{\frac{1}{n}\sum_{j=1}^{n}c_j/B_j}
-    $$
+```bash
+python3 proj.py inputs/6teams_flex15_original.in
+```
 
-    The objective is to minimize the total weighted travel distance:
+The pipeline is:
 
-    $$
-    \boxed{\min \sum_{i=1}^{n} w_i D_i}
-    $$
+```text
+<instance>.in
+    -> Python parser -> instances/<instance>.dzn
+    -> MiniZinc model + Gecode (60-second limit)
+    -> raw/<instance>.txt (raw solver stdout and stderr)
+    -> Python output formatter
+    -> outputs/<instance>.out + terminal stdout
+```
 
-    where $D_i$ represents the total distance traveled by team $i$. This approach minimizes overall travel distance while accounting for each team's financial constraints, without requiring manually specified weights.
+For an input named `4teams_unavailable.in`, the script produces:
 
-Stadium distances are supplied as a symmetric, nonnegative matrix with zero diagonal; they need not be circular.
+| Generated output | Meaning |
+|---|---|
+| `instances/4teams_unavailable.in` | Input file with the required input blocks, later parsed to make the `.in` file.  |
+| `instances/4teams_unavailable.dzn` | MiniZinc parameter data converted from the `.in` file |
+| `TTPFVHBTDMBSA-BA.mzn` | MiniZinc constraint model, generated by `proj.py`. |
+| `raw/4teams_unavailable.txt` | Original MiniZinc/Gecode standard output, followed by standard error |
+| `outputs/4teams_unavailable.out` | Human-readable tournament schedule and travel statistics |
+| Terminal standard output | The same human-readable report printed to the console |
 
-## Model parameters
 
-Generated by `proj.py` from the input and written to `instances/<name>.dzn` (`home = 1`, `away = 2`, `UND = 3`). `available` is `true` except for the pairs listed in input block 6.
+### Reading the output
 
-| Parameter | MiniZinc type | Meaning |
+The formatted output includes:
+
+- **Game Schedule:** Each team's opponents in round order, indicating whether each match is at home (`at home`) or away (`away`).
+- **Per-team statistics:** Each team's total distance travelled, amount spent, initial monetary budget, and **travel priority**.
+- **Overall Stats:** Total distance travelled and total transportation expenses.
+
+The printed travel priority is the **normalized mathematical weight**, rounded to **two decimal places** for display. It is not the large integer coefficient used internally by Gecode, and the formatted output does not currently print the scaled objective value.
+
+If the solver reports infeasibility, the script prints `No valid schedule exists for this instance`. If the solver reports `=====UNKNOWN=====`, the current formatter prints `No schedule found within 60 seconds` rather than attempting to show an intermediate solution. When the script formats a solution without a proof marker (`==========`), it appends a notice that the best schedule has **not been proven optimal**. The raw solver transcript in `raw/` is the authoritative record for statuses and diagnostics. However, for an explicit optimality check, run MiniZinc directly on a generated instance:
+
+```bash
+minizinc --solver gecode TTPFVHBTDMBSA-BA.mzn instances/4teams_un.dzn
+```
+
+## Project structure
+
+```text
+proj.py                  Main program: input -> data (.dzn) -> MiniZinc -> raw output -> report
+TTPFVHBTDMBSA-BA.mzn     MiniZinc model generated by proj.py
+inputs/                  Test instances in the proj.py input format (*.in)
+instances/               MiniZinc data generated by proj.py for each input (*.dzn)
+raw/                     Raw MiniZinc output for each input (*.txt)
+outputs/                 Reports produced by proj.py for each input (*.out)
+baseline/                Original CSPLib TTPPV model (starting point)
+report/                  LaTeX report (report.tex) and its PDF
+```
+
+
+## Internal MiniZinc data
+
+`proj.py` converts the input into these MiniZinc parameters:
+
+| Parameter | MiniZinc type | Description |
 |---|---|---|
-| `nbTeams` | `int` | Even number of teams (at least four), numbered `1..n`. |
-| `pv` | `array[Teams,Teams] of 1..3` | `1`: row team hosts column team; `2`: row team visits column team; `3`: flexible venue. |
+| `nbTeams` | `int` | Even number of teams. |
+| `pv` | `array[Teams,Teams] of 1..3` | Venue choices: `home = 1`, `away = 2`, `UND = 3`. |
+| `cost_per_unit_of_distance` | `array[Teams] of int` | Team-specific travel cost per distance unit. |
 | `distance` | `array[Teams,Teams] of int` | Pairwise stadium distances. |
-| `cost_per_unit_of_distance` | `array[Teams] of int` | Each team's **positive** expense in credits per distance unit. |
-| `budget` | `array[Teams] of int` | Each team's **positive** maximum monetary travel expense in credits. |
-| `available` | `array[Teams,Rounds] of bool` | Whether the team can host a match in that round. |
+| `budget` | `array[Teams] of int` | Individual monetary travel budgets. |
+| `available` | `array[Teams,Rounds] of bool` | Whether the team may host in each round. |
 
-For a fixed match, the opposite matrix entries must be `(1,2)` or `(2,1)`; for a flexible match, they must be `(3,3)`. The diagonal is ignored. Both rates and budgets are strictly positive to make the financial sensitivity well-defined. **There are no manually chosen weights in the input.**
+The `available` matrix is always generated, including when block 6 is omitted (in that case, every entry is `true`). The MiniZinc model enforces input consistency and the tournament constraints.
 
-## Budget-aware objective
 
-Let:
+## Budget-aware mathematical objective
 
-- `D_i` be the total distance traveled by team `i`, including its first and final journey;
-- `c_i` be its cost per unit of distance;
-- `E_i = c_i D_i` be its total travel expense;
-- `B_i` be its monetary travel budget.
+For each team `i`, define:
 
-The model always enforces **`E_i <= B_i`**.
+- $D_i$: its total travelled distance, including the first departure and final return;
+- $c_i$: its monetary travel cost per distance unit;
+- $B_i$: its positive travel budget;
+- $E_i = c_iD_i$: its actual travel expenditure.
 
-Each team's financial sensitivity is the fraction of its budget spent **per distance unit**:
+The **hard budget constraint** is $E_i \le B_i$ for every team.
 
-\[
-s_i = \frac{c_i}{B_i}, \qquad \bar{s} = \frac{1}{n}\sum_{j=1}^n s_j.
-\]
+The team's **financial sensitivity to travel** and the mean sensitivity are
 
-The automatically derived priority for team `i` is:
+$$
+s_i = \frac{c_i}{B_i}, \qquad \bar{s}=\frac{1}{n}\sum_{j=1}^{n}s_j.
+$$
 
-\[
-p_i = 1 + \frac{s_i}{\bar{s}}.
-\]
+Since $s_i$ is the fraction of the budget consumed per distance unit, teams with larger $s_i$ are more financially sensitive to additional travel. The automatically calculated **normalized priority** is:
 
-Thus, the objective is exactly
+$$
+\boxed{w_i=1+\frac{s_i}{\bar{s}}}
+$$
 
-\[
-\boxed{\min\sum_{i=1}^{n}\left(1 + \frac{c_i/B_i}{\frac1n\sum_{j=1}^{n}c_j/B_j}\right)D_i}.
-\]
+and the mathematical objective is
 
-The `1` gives every team a common distance penalty; the second term emphasizes teams whose travel is more expensive relative to their budgets. For instance, reducing the distance traveled by a financially sensitive team has more impact on the objective than an identical reduction for a less sensitive team.
+$$
+\boxed{\min \sum_{i=1}^{n}w_iD_i}
+$$
 
-Equivalent interpretation:
+Equivalently,
 
-\[
-\min\left[\sum_i D_i + \frac{1}{\bar s}\sum_i\frac{E_i}{B_i}\right].
-\]
+$$
+\min\left(\sum_i D_i+\frac{1}{\bar{s}}\sum_i\frac{E_i}{B_i}\right)
+$$
 
-This is a **single centralized weighted optimization objective**, not a game-theoretic model and not an objective that directly minimizes the maximum individual burden. Team priorities depend only on input data, *not* on the chosen schedule. A team with a higher priority coefficient does not necessarily end up traveling less; all constraints and competing interests still matter.
+The `1` gives every team a common distance penalty; $s_i/\bar{s}$ gives a greater penalty to teams whose travel is financially more restrictive. In particular,
 
-### Exact integer optimization for Gecode
+$$
+\sum_i w_iD_i
+=\underbrace{\sum_i D_i}_{\text{total travel distance}}
++\frac{1}{\bar{s}}\underbrace{\sum_i\frac{E_i}{B_i}}_{\text{sum of fractional budget utilizations}}
+$$
 
-The objective uses rational, *fixed* coefficients. Rather than optimize using floating-point decision variables, the model clears the denominators and minimizes an **exactly equivalent integer objective**:
+Thus, the objective combines **total tournament travel distance** with the **sum of fractional budget utilizations**. It does not guarantee minimum total monetary expenditure or equal budget utilization, and the priorities are fixed by the input rather than adjusted to the resulting schedule.
 
-1. Let `L = lcm(B_1,...,B_n)` and `a_i = c_i * (L div B_i)`.
-2. Let `A = sum(a_i)`.
-3. Then `p_i = (A + n*a_i)/A`.
-4. Remove the greatest common divisor of `A+n*a_i` from all coefficients. The remaining positive integers are `priorityCoefficient[i]`.
-5. Minimize `sum(priorityCoefficient[i] * D_i)`.
 
-Multiplying all objective values by one positive constant does not change the minimizing schedules. The report prints $p_i$ as a decimal (`normalizedPriority`) for readability. The scaled score converts back to the boxed value as `scaled_score * coefficientGCD / A`.
+### Exact integer coefficients used by Gecode
 
-**Limit:** Exact integer scaling can create very large coefficients when many budgets have large, pairwise-coprime values. This may cause integer overflow or slower solving. The supplied 4- and 6-team tests use moderate budgets; for larger instances, check coefficient magnitudes or consider a documented bounded-precision approximation.
+Since the weights $w_i$ can be rational, the model optimizes an equivalent integer objective instead of using floating-point decision coefficients:
 
-## Four-team example
+1. Compute $L=lcm(B_1,\ldots,B_n)$ and $a_i=c_i(L/B_i)$.
+2. Compute $A=\sum_j a_j$ and $C_i=A+na_i$, so that $w_i=C_i/A$.
+3. Divide all $C_i$ by their greatest common divisor $g$ to obtain integer coefficients $q_i=C_i/g$.
+4. Optimize the integer expression:
+
+```minizinc
+constraint budgetAwareObjective =
+    sum(i in Teams)(priorityCoefficient[i] * teamDistance[i]);
+
+solve :: seq_search([
+    int_search(opponent, first_fail, indomain_min),
+    int_search(matchHost, input_order, indomain_min)
+]) minimize budgetAwareObjective;
+```
+
+Here `priorityCoefficient[i] = q_i` and `normalizedPriority[i] = w_i`. Because $q_i=(A/g)w_i$, the integer expression is a **positive constant multiple** of the intended objective and therefore has **exactly the same optimal schedules**, assuming integer arithmetic does not overflow. If an integer objective value $Q$ is obtained from a solver transcript, its original normalized weighted value is $Qg/A$.
+
+**Search optimization:** The `seq_search` annotation instructs Gecode to assign **opponents/scheduling variables first** using `first_fail`, and then **match hosts** using `input_order`. This changes the **search order**, not the objective or feasible solutions. It has substantially reduced solve time for the tested instances, although solver runtime depends on the instance and environment.
+
+**Numerical limit:** The LCM of large, relatively prime budgets may produce coefficients too large for the solver's supported integer range. Test larger instances accordingly.
+
+### Four-team illustration
 
 The data generated from `inputs/4teams_budget_aware.in` contains:
 
@@ -191,14 +251,16 @@ budget = [20, 20, 20, 20];
 
 Their sensitivities are `[0.10, 0.15, 0.20, 0.15]`, whose mean is `0.15`.
 
-| Team | Sensitivity | Mathematical priority | Exact scaled coefficient |
+| Team | Sensitivity $s_i$ | Weight $w_i$ | Integer coefficient $q_i$ |
 |---|---:|---:|---:|
 | 1 | 0.10 | 1.6667 | 5 |
 | 2 | 0.15 | 2.0000 | 6 |
 | 3 | 0.20 | 2.3333 | 7 |
 | 4 | 0.15 | 2.0000 | 6 |
 
-The simplified coefficients are `[5,6,7,6]` (equal to the mathematical priorities times 3). A valid optimal schedule is:
+The integer coefficients are exactly three times the rational weights. A previously verified four-team solution with all stadiums available travels **12 distance units** and costs **34**, with scaled objective **70**. The four-team stadium-closure test has a previously computed feasible schedule travelling **14 units** and costing **38**
+
+A valid optimal schedule is:
 
 ```text
 SCHEDULE
@@ -208,16 +270,27 @@ SCHEDULE
 @3  2  1
 ```
 
-## Search strategy
+## Test instances and previous observations
 
-The original CSPLib model has no search instruction, so the solver chooses its own order. We added one (`seq_search` at the end of the model) that makes the solver decide only the two things that really are choices:
+The project includes or has been tested with the following `.in` instances:
 
-1. **Who plays whom.** It fills `opponent[i,k]`, always taking the slot with the fewest possible opponents left (`first_fail`). If a slot has no valid opponent left, the solver backs up at once, so bad rounds are dropped early.
-2. **Who hosts each flexible match.** It then picks the host of each flexible pair (two options). Fixed matches already have their host.
+| Instance | Description |
+|---|---|
+| `4teams_budget_aware.in` | Four teams, five flexible venues, all stadiums available |
+| `4teams_unavailable.in` | Four teams, five flexible venues, four stadium closures |
+| `6teams_fixed_original.in` / `6teams_fixed_relaxed.in` | All fifteen matches have fixed venues |
+| `6teams_flex5_original.in` / `6teams_flex5_relaxed.in` | Five of fifteen matches have flexible venues |
+| `6teams_flex15_original.in` / `6teams_flex15_relaxed.in` | All fifteen matches have flexible venues |
+| `6teams_priority_demo.in` | All fifteen matches flexible, with team 6 having five times higher travel costs |
 
-Home/away, trips, distances and expenses are never chosen directly; they follow from these two steps. The search order changes only the speed, not which schedules are valid or the optimal value.
-Each time a complete schedule is found, the solver only looks for cheaper ones and drops any partial schedule that is already more expensive. When no options are left, the last schedule found is the proven optimum.
+The six-team **relaxed** cases multiply every original budget by 1.5, leaving normalized weights unchanged while relaxing feasibility constraints.
 
-## Suggested experiments
+Previously observed six-team results with **original budgets** were:
 
-Compare the new budget-aware model against a distance-only baseline (`minimize totalTravel`) and an expense-only baseline (`minimize totalExpense`), **keeping every constraint and each instance the same**. Record travel distance, actual expenditure, maximum budget utilization, scaled budget-aware score, time to solution, and optimality status. You can also vary the number of flexible matches or modify the cost/budget ratios to investigate when team-specific priorities alter the schedule.
+| Flexible matches | Total distance | Total travel expenses |
+|---|---:|---:|
+| 0 of 15 | 258 | 772 |
+| 5 of 15 | 258 | 772 |
+| 15 of 15 | 231 | 706 |
+
+These are results from prior experiments on the same optimization formulation, **not newly rerun benchmarks of this Python version**. The raw solver output should be retained if formally reporting solve times or proven optimality. For the 15-flexible-match case, the previous objective calculation used the same weights as the current model.

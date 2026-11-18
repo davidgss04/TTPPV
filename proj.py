@@ -2,7 +2,6 @@ import os
 import re
 import subprocess
 import sys
-import tempfile
 
 SOLVER = "gecode"
 TIME_LIMIT_MS = 60000
@@ -13,6 +12,15 @@ LINE = "=" * 40
 # ------------------------- MiniZinc model -------------------------
 
 MODEL = r"""
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Traveling Tournament Problem with Flexible Venues, Home/Away Balance,
+% Travel Distances, Monetary Travel Budgets, Stadium Availability,
+% and Budget-Aware Weighted Optimization
+%
+% Extension of Gilles Pesant's TTPPV (CSPLib problem 068).
+% Teams and rounds are indexed from 1, as in the original MiniZinc model.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 include "globals.mzn";
 
 int: nbTeams;
@@ -295,7 +303,7 @@ def build_data(text):
 # --------------------------- MiniZinc -----------------------------
 
 def run_minizinc(dzn_path):
-    with tempfile.NamedTemporaryFile("w", suffix=".mzn", delete=False, encoding="utf-8") as f:
+    with open("TTPFVHBTDMBSA-BA.mzn","w", encoding="utf-8") as f:
         f.write(MODEL)
     try:
         return subprocess.run(
@@ -303,7 +311,7 @@ def run_minizinc(dzn_path):
              f.name, dzn_path],
             capture_output=True, text=True)
     finally:
-        os.remove(f.name)
+        pass
 
 
 # ------------------------ Output to report ------------------------
